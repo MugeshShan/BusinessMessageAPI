@@ -1,4 +1,5 @@
 ﻿using BusinessMessage.API.Models;
+using BusinessMessage.Client;
 using BusinessMessage.Service;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
@@ -13,6 +14,7 @@ namespace BusinessMessage.API.Controllers
         private string ConversationId;
         private Message Message = new Message();
         private UserStatus UserStatus = new UserStatus();
+        private string Secret = "";
         public BusinessMessageController(IMessageService _messageService)
         {
             messageService = _messageService;
@@ -41,7 +43,7 @@ namespace BusinessMessage.API.Controllers
         //}
         [HttpPost]
         [Route("callback")]
-        public ActionResult<string> Callback([FromBody] dynamic request)
+        public async Task<ActionResult<string>> Callback([FromBody] dynamic request)
         {
 
             var dict = messageService.Verification(request);
@@ -117,6 +119,53 @@ namespace BusinessMessage.API.Controllers
             //{
             //    var message = messageService.GetMessageOrEvent(request);
             //}
+
+           var messageClient = new MessageClient(new HttpClient
+            {
+                BaseAddress = new Uri("http://businessmessages.googleapis.com")
+            });
+
+
+            if(Message.Text != null)
+            {
+                var businessEvent = new BusinessMessagesEvent
+                {
+                    EventType = BusinessMessagesEventEventType.TYPING_STARTED,
+                    Name = "JustAnswer Expert's Assistant",
+                    Representative = new BusinessMessagesRepresentative
+                    {
+                        DisplayName = "JustAnswer Expert's Assistant",
+                        RepresentativeType = BusinessMessagesRepresentativeRepresentativeType.BOT,
+                        AvatarImage = ""
+                    }
+                };
+                await messageClient.CreateEventAsync(ConversationId, Guid.NewGuid().ToString(), businessEvent);
+                var businessMessage = new BusinessMessagesMessage
+                {
+                    Fallback = "Hello",
+                    Representative = new BusinessMessagesRepresentative
+                    {
+                        DisplayName = "JustAnswer Expert's Assistant",
+                        RepresentativeType = BusinessMessagesRepresentativeRepresentativeType.BOT,
+                        AvatarImage = ""
+                    },
+                    Text = "Hi How Can I Help?",
+                    MessageId= Guid.NewGuid().ToString()
+                };
+                await messageClient.CreateMessageAsync(ConversationId,true, businessMessage);
+                var businessStopEvent = new BusinessMessagesEvent
+                {
+                    EventType = BusinessMessagesEventEventType.TYPING_STOPPED,
+                    Name = "JustAnswer Expert's Assistant",
+                    Representative = new BusinessMessagesRepresentative
+                    {
+                        DisplayName = "JustAnswer Expert's Assistant",
+                        RepresentativeType = BusinessMessagesRepresentativeRepresentativeType.BOT,
+                        AvatarImage = ""
+                    }
+                };
+                await messageClient.CreateEventAsync(ConversationId, Guid.NewGuid().ToString(), businessStopEvent);
+            }
 
             return Ok();
             //return Ok("secret:" + messageModel.Secret);
